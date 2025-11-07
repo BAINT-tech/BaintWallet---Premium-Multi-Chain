@@ -487,9 +487,9 @@
               setCustomNetworks(JSON.parse(savedNetworks));
             }
 
-            // Request notification permission
-            if ('Notification' in window && Notification.permission === 'default') {
-              Notification.requestPermission();
+           
+            // Notifications disabled for compatibility
+console.log('Notifications disabled for mobile compatibility');
             }
           }, []);
 
@@ -497,25 +497,61 @@
           const showMsg = (msg) => { setMessage(msg); setTimeout(() => setMessage(''), 4000); };
           
           const addNotification = (icon, title, message) => {
-            const notif = {
-              id: Date.now(),
-              icon,
-              title,
-              message,
-              time: new Date().toLocaleTimeString(),
-              read: false
-            };
-            setNotifications(prev => [notif, ...prev.slice(0, 9)]);
+  const notif = {
+    id: Date.now(),
+    icon,
+    title,
+    message,
+    time: new Date().toLocaleTimeString(),
+    read: false
+  };
+  setNotifications(prev => [notif, ...prev.slice(0, 9)]);
 
-            // Browser notification
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(title, {
-                body: message,
-                icon: '/logo.png'
-              });
-            }
-          };
+  // Safe browser notification
+  if (typeof Notification !== 'undefined') {
+    if (Notification.permission === 'granted') {
+      try {
+        const n = new Notification(title, {
+          body: message,
+          tag: 'bw-' + Date.now()
+        });
+        setTimeout(() => { try { n.close(); } catch(e) {} }, 5000);
+      } catch (e) {
+        // Silently fail - notifications not critical
+        console.log('Notification blocked');
+      }
+    }
+  }
+};
 
+// FIXED CODE:
+if ('Notification' in window) {
+  if (Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body: message,
+        icon: '/logo.png',
+        tag: 'baintwallet-' + Date.now()
+      });
+    } catch (e) {
+      console.log('Notification blocked:', e);
+    }
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        try {
+          new Notification(title, {
+            body: message,
+            icon: '/logo.png',
+            tag: 'baintwallet-' + Date.now()
+          });
+        } catch (e) {
+          console.log('Notification blocked:', e);
+        }
+      }
+    });
+  }
+}
           const trackEvent = async (eventName, data = {}) => {
             try {
               await fetch(`${BACKEND_API}/track`, {
@@ -642,48 +678,89 @@
               showMsg('❌ Error: ' + e.message);
             }
             setLoading(false);
-          };
-
           const importWallet = async () => {
-            if (!seedInput.trim()) { 
-              showMsg('❌ Enter seed phrase'); 
-              return; 
-            }
-            
-            const cleanSeed = seedInput.trim().toLowerCase().replace(/\s+/g, ' ');
-            const wordCount = cleanSeed.split(' ').length;
-            
-            if (wordCount !== 12 && wordCount !== 24) {
-              showMsg('❌ Seed phrase must be 12 or 24 words');
-              return;
-            }
-            
-            setLoading(true);
-            try {
-              const w = ethers.Wallet.fromMnemonic(cleanSeed);
-              const provider = await getProviderWithRetry();
-              const balance = await provider.getBalance(w.address);
-              
-              setWallet({ 
-                address: w.address, 
-                privateKey: w.privateKey, 
-                mnemonic: w.mnemonic.phrase, 
-                balance: ethers.utils.formatEther(balance) 
-              });
-              
-              showMsg('✅ Wallet imported!');
-              celebrate();
-              addNotification('📥', 'Wallet Imported', 'Successfully imported your wallet');
-              trackEvent('wallet_imported', { chain, isTestnet });
-              setSeedInput('');
-              setView('wallet');
-              fetchPrices();
-            } catch (e) { 
-              console.error('Import error:', e);
-              showMsg('❌ Invalid seed phrase. Check spelling and order.'); 
-            }
-            setLoading(false);
-          };
+  if (!seedInput.trim()) { 
+    showMsg('❌ Please enter your seed phrase'); 
+    return; 
+  }
+  
+  setLoading(true);
+  
+  try {
+    // Clean the seed phrase
+    const cleanSeed = seedInput
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, '');
+    
+    const words = cleanSeed.split(' ');
+    
+    // Validate word count
+    if (words.length !== 12 && words.length !== 24) {
+      showMsg(`❌ Invalid seed phrase length: ${words.length} words. Must be 12 or 24 words.`);
+      setLoading(false);
+      return;
+    }
+    
+    // Try to import wallet
+    let w;
+    try {
+      w = ethers.Wallet.fromMnemonic(cleanSeed);
+    } catch (err) {
+      console.error('Mnemonic validation error:', err);
+      showMsg('❌ Invalid seed phrase. Please verify:');
+      setTimeout(() => showMsg('• Correct spelling of all words'), 1500);
+      setTimeout(() => showMsg('• Correct word order'), 3000);
+      setTimeout(() => showMsg('• No extra spaces or characters'), 4500);
+      setLoading(false);
+      return;
+    }
+    
+    // Connect to network
+    try {
+      const provider = await getProviderWithRetry();
+      const balance = await provider.getBalance(w.address);
+      
+      setWallet({ 
+        address: w.address, 
+        privateKey: w.privateKey, 
+        mnemonic: w.mnemonic.phrase, 
+        balance: ethers.utils.formatEther(balance) 
+      });
+      
+      showMsg('✅ Wallet imported successfully!');
+      celebrate();
+      addNotification('📥', 'Success!', 'Wallet imported and ready to use');
+      trackEvent('wallet_imported', { chain, isTestnet });
+      setSeedInput('');
+      setView('wallet');
+      fetchPrices();
+    } catch (networkErr) {
+      console.error('Network error:', networkErr);
+      showMsg('⚠️ Wallet imported but network error. Try switching chains.');
+      
+      // Still set the wallet even if network fails
+      setWallet({ 
+        address: w.address, 
+        privateKey: w.privateKey, 
+        mnemonic: w.mnemonic.phrase, 
+        balance: '0.0'
+      });
+      
+      setSeedInput('');
+      setView('wallet');
+    }
+    
+  } catch (e) {
+    console.error('Unexpected import error:', e);
+    showMsg('❌ Failed to import wallet. Please try again.');
+  }
+  
+  setLoading(false);
+};};
+
+          
 
           const refreshBalance = async () => {
             if (!wallet) return;
