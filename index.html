@@ -208,10 +208,10 @@
           const qrRef = useRef(null);
 
           const PLATFORM_WALLET = '0x88bf316109c1d462e5ec18a204d6f0537f6fae1c';
-          const NFT_TRANSFER_FEE = 0.50; // $0.50 in USD
-          const BACKEND_API = 'http://localhost:3000/api'; // Update with your server URL
+          const NFT_TRANSFER_FEE = 0.50;
+          const BACKEND_API = 'http://localhost:3000/api';
 
-          // ALL 15 CHAINS - COMPLETE LIST
+          // ALL 15 CHAINS - COMPLETE
           const chains = {
             ETH: {
               name: 'Ethereum', symbol: 'ETH', icon: '⟠', color: 'from-blue-500 to-purple-600',
@@ -474,7 +474,7 @@
             const refCode = urlParams.get('ref');
             if (refCode) {
               localStorage.setItem('referred_by', refCode);
-              addNotification('🎁', 'Referral Applied!', `You've been referred by ${refCode}. Enjoy benefits!`);
+              addNotification('🎁', 'Referral Applied!', `You've been referred by ${refCode}`);
             }
 
             // Generate user's own referral code
@@ -486,72 +486,46 @@
             if (savedNetworks) {
               setCustomNetworks(JSON.parse(savedNetworks));
             }
-
-           
-            // Notifications disabled for compatibility
-console.log('Notifications disabled for mobile compatibility');
-            }
           }, []);
 
-          const celebrate = () => { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); };
-          const showMsg = (msg) => { setMessage(msg); setTimeout(() => setMessage(''), 4000); };
+          const celebrate = () => { 
+            if (typeof confetti !== 'undefined') {
+              confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); 
+            }
+          };
           
-          const addNotification = (icon, title, message) => {
-  const notif = {
-    id: Date.now(),
-    icon,
-    title,
-    message,
-    time: new Date().toLocaleTimeString(),
-    read: false
-  };
-  setNotifications(prev => [notif, ...prev.slice(0, 9)]);
+          const showMsg = (msg) => { 
+            setMessage(msg); 
+            setTimeout(() => setMessage(''), 4000); 
+          };
+          
+          // FIXED NOTIFICATION FUNCTION
+          const addNotification = (icon, title, msg) => {
+            const notif = {
+              id: Date.now(),
+              icon,
+              title,
+              message: msg,
+              time: new Date().toLocaleTimeString(),
+              read: false
+            };
+            setNotifications(prev => [notif, ...prev.slice(0, 9)]);
 
-  // Safe browser notification
-  if (typeof Notification !== 'undefined') {
-    if (Notification.permission === 'granted') {
-      try {
-        const n = new Notification(title, {
-          body: message,
-          tag: 'bw-' + Date.now()
-        });
-        setTimeout(() => { try { n.close(); } catch(e) {} }, 5000);
-      } catch (e) {
-        // Silently fail - notifications not critical
-        console.log('Notification blocked');
-      }
-    }
-  }
-};
+            // Safe browser notification
+            try {
+              if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                const n = new Notification(title, {
+                  body: msg,
+                  tag: 'bw-' + Date.now()
+                });
+                setTimeout(() => { try { n.close(); } catch(e) {} }, 5000);
+              }
+            } catch (e) {
+              // Silently fail - notifications not critical
+              console.log('Notification not available');
+            }
+          };
 
-// FIXED CODE:
-if ('Notification' in window) {
-  if (Notification.permission === 'granted') {
-    try {
-      new Notification(title, {
-        body: message,
-        icon: '/logo.png',
-        tag: 'baintwallet-' + Date.now()
-      });
-    } catch (e) {
-      console.log('Notification blocked:', e);
-    }
-  } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission().then(permission => {
-      if (permission === 'granted') {
-        try {
-          new Notification(title, {
-            body: message,
-            icon: '/logo.png',
-            tag: 'baintwallet-' + Date.now()
-          });
-        } catch (e) {
-          console.log('Notification blocked:', e);
-        }
-      }
-    });
-  }
-}
           const trackEvent = async (eventName, data = {}) => {
             try {
               await fetch(`${BACKEND_API}/track`, {
@@ -662,7 +636,8 @@ if ('Notification' in window) {
               const balance = await provider.getBalance(w.address);
               
               setWallet({ 
-                address: w.address,privateKey: w.privateKey, 
+                address: w.address, 
+                privateKey: w.privateKey, 
                 mnemonic: w.mnemonic.phrase, 
                 balance: ethers.utils.formatEther(balance) 
               });
@@ -678,89 +653,80 @@ if ('Notification' in window) {
               showMsg('❌ Error: ' + e.message);
             }
             setLoading(false);
-          const importWallet = async () => {
-  if (!seedInput.trim()) { 
-    showMsg('❌ Please enter your seed phrase'); 
-    return; 
-  }
-  
-  setLoading(true);
-  
-  try {
-    // Clean the seed phrase
-    const cleanSeed = seedInput
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .replace(/[^\w\s]/g, '');
-    
-    const words = cleanSeed.split(' ');
-    
-    // Validate word count
-    if (words.length !== 12 && words.length !== 24) {
-      showMsg(`❌ Invalid seed phrase length: ${words.length} words. Must be 12 or 24 words.`);
-      setLoading(false);
-      return;
-    }
-    
-    // Try to import wallet
-    let w;
-    try {
-      w = ethers.Wallet.fromMnemonic(cleanSeed);
-    } catch (err) {
-      console.error('Mnemonic validation error:', err);
-      showMsg('❌ Invalid seed phrase. Please verify:');
-      setTimeout(() => showMsg('• Correct spelling of all words'), 1500);
-      setTimeout(() => showMsg('• Correct word order'), 3000);
-      setTimeout(() => showMsg('• No extra spaces or characters'), 4500);
-      setLoading(false);
-      return;
-    }
-    
-    // Connect to network
-    try {
-      const provider = await getProviderWithRetry();
-      const balance = await provider.getBalance(w.address);
-      
-      setWallet({ 
-        address: w.address, 
-        privateKey: w.privateKey, 
-        mnemonic: w.mnemonic.phrase, 
-        balance: ethers.utils.formatEther(balance) 
-      });
-      
-      showMsg('✅ Wallet imported successfully!');
-      celebrate();
-      addNotification('📥', 'Success!', 'Wallet imported and ready to use');
-      trackEvent('wallet_imported', { chain, isTestnet });
-      setSeedInput('');
-      setView('wallet');
-      fetchPrices();
-    } catch (networkErr) {
-      console.error('Network error:', networkErr);
-      showMsg('⚠️ Wallet imported but network error. Try switching chains.');
-      
-      // Still set the wallet even if network fails
-      setWallet({ 
-        address: w.address, 
-        privateKey: w.privateKey, 
-        mnemonic: w.mnemonic.phrase, 
-        balance: '0.0'
-      });
-      
-      setSeedInput('');
-      setView('wallet');
-    }
-    
-  } catch (e) {
-    console.error('Unexpected import error:', e);
-    showMsg('❌ Failed to import wallet. Please try again.');
-  }
-  
-  setLoading(false);
-};};
+          };
 
-          
+          // FIXED IMPORT WALLET FUNCTION
+          const importWallet = async () => {
+            if (!seedInput.trim()) { 
+              showMsg('❌ Please enter your seed phrase'); 
+              return; 
+            }
+            
+            setLoading(true);
+            
+            try {
+              const cleanSeed = seedInput
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, ' ')
+                .replace(/[^\w\s]/g, '');
+              
+              const words = cleanSeed.split(' ');
+              
+              if (words.length !== 12 && words.length !== 24) {
+                showMsg(`❌ Must be 12 or 24 words. You entered ${words.length} words.`);
+                setLoading(false);
+                return;
+              }
+              
+              let w;
+              try {
+                w = ethers.Wallet.fromMnemonic(cleanSeed);
+              } catch (err) {
+                console.error('Invalid mnemonic:', err);
+                showMsg('❌ Invalid seed phrase. Check spelling and order.');
+                setLoading(false);
+                return;
+              }
+              
+              try {
+                const provider = await getProviderWithRetry();
+                const balance = await provider.getBalance(w.address);
+                
+                setWallet({ 
+                  address: w.address, 
+                  privateKey: w.privateKey, 
+                  mnemonic: w.mnemonic.phrase, 
+                  balance: ethers.utils.formatEther(balance) 
+                });
+                
+                showMsg('✅ Wallet imported successfully!');
+                celebrate();
+                addNotification('📥', 'Success!', 'Wallet imported and ready');
+                trackEvent('wallet_imported', { chain, isTestnet });
+                setSeedInput('');
+                setView('wallet');
+                fetchPrices();
+              } catch (networkErr) {
+                console.error('Network error:', networkErr);
+                setWallet({ 
+                  address: w.address, 
+                  privateKey: w.privateKey, 
+                  mnemonic: w.mnemonic.phrase, 
+                  balance: '0.0'
+                });
+                showMsg('✅ Wallet imported! (Network error - try switching chains)');
+                setSeedInput('');
+                setView('wallet');
+              }
+              
+            } catch (e) {
+              console.error('Import error:', e);
+              showMsg('❌ Failed to import wallet');
+            }
+            
+            setLoading(false);
+          };
 
           const refreshBalance = async () => {
             if (!wallet) return;
@@ -779,7 +745,7 @@ if ('Notification' in window) {
               celebrate();
             } catch (e) { 
               console.error('Refresh error:', e);
-              showMsg('⚠️ Network error. Try switching RPC or chain.');
+              showMsg('⚠️ Network error. Try switching chain.');
             }
             setLoading(false);
           };
@@ -804,9 +770,9 @@ if ('Notification' in window) {
                 value: ethers.utils.parseEther(sendAmount) 
               });
               
-              showMsg('✅ Transaction sent! (FREE - No Platform Fee)');
+              showMsg('✅ Transaction sent! (FREE)');
               celebrate();
-              addNotification('📤', 'Transaction Sent', `${sendAmount} ${chains[chain].symbol} sent successfully`);
+              addNotification('📤', 'Sent', `${sendAmount} ${chains[chain].symbol} sent`);
               
               trackEvent('transaction_sent', {
                 chain,
@@ -831,7 +797,7 @@ if ('Notification' in window) {
                 setTxs(prev => prev.map(t => t.hash === tx.hash ? {...t, status: 'confirmed'} : t)); 
                 showMsg('✅ Confirmed!'); 
                 celebrate();
-                addNotification('✅', 'Transaction Confirmed', `${sendAmount} ${chains[chain].symbol} confirmed on blockchain`);
+                addNotification('✅', 'Confirmed', 'Transaction confirmed');
                 refreshBalance(); 
               });
               
@@ -884,7 +850,6 @@ if ('Notification' in window) {
               setTokens(tokenList);
             } catch (e) { 
               console.error('Token loading error:', e);
-              showMsg('⚠️ Could not load tokens');
             }
             
             setLoadingTokens(false);
@@ -911,7 +876,7 @@ if ('Notification' in window) {
               
               showMsg(`✅ ${selectedToken.symbol} sent! (FREE)`);
               celebrate();
-              addNotification('🪙', 'Token Sent', `${sendTokenAmount} ${selectedToken.symbol} sent successfully`);
+              addNotification('🪙', 'Token Sent', `${sendTokenAmount} ${selectedToken.symbol}`);
               
               trackEvent('token_sent', {
                 chain,
@@ -935,7 +900,6 @@ if ('Notification' in window) {
                 setTxs(prev => prev.map(t => t.hash === tx.hash ? {...t, status: 'confirmed'} : t)); 
                 showMsg('✅ Confirmed!'); 
                 celebrate();
-                addNotification('✅', 'Token Transfer Confirmed', `${sendTokenAmount} ${selectedToken.symbol} confirmed`);
                 loadTokenBalances(); 
               });
               
@@ -959,7 +923,6 @@ if ('Notification' in window) {
             
             setLoadingNFTs(true);
             try {
-              // Using Alchemy NFT API
               const alchemyKey = 'RV7R38aklgHvDsNjslY6Xo9ptfJ--r2t';
               let baseURL = '';
               
@@ -1025,9 +988,9 @@ if ('Notification' in window) {
               const contract = new ethers.Contract(nft.contract, ERC721_ABI, signer);
               const tx = await contract.transferFrom(wallet.address, toAddress, nft.tokenId);
               
-              showMsg(`✅ NFT sent! Platform fee: $${NFT_TRANSFER_FEE}`);
+              showMsg(`✅ NFT sent! Fee: $${NFT_TRANSFER_FEE}`);
               celebrate();
-              addNotification('🖼️', 'NFT Transferred', `${nft.name} sent successfully`);
+              addNotification('🖼️', 'NFT Sent', `${nft.name} transferred`);
               
               trackEvent('nft_sent', {
                 chain,
@@ -1059,12 +1022,11 @@ if ('Notification' in window) {
             
             setLoading(true);
             try {
-              // Validate network
               const provider = new ethers.providers.JsonRpcProvider(newNetwork.rpc);
               const network = await provider.getNetwork();
               
               if (network.chainId !== parseInt(newNetwork.chainId)) {
-                showMsg('❌ Chain ID mismatch! Verify your RPC and Chain ID.');
+                showMsg('❌ Chain ID mismatch!');
                 setLoading(false);
                 return;
               }
@@ -1084,16 +1046,16 @@ if ('Notification' in window) {
               setCustomNetworks(updated);
               localStorage.setItem('custom_networks', JSON.stringify(updated));
               
-              showMsg('✅ Custom network added! (FREE)');
+              showMsg('✅ Network added! (FREE)');
               celebrate();
-              addNotification('🌐', 'Network Added', `${newNetwork.name} is now available`);
+              addNotification('🌐', 'Network Added', `${newNetwork.name} available`);
               trackEvent('custom_network_added', { networkName: newNetwork.name });
               
               setNewNetwork({ name: '', rpc: '', chainId: '', symbol: '', explorer: '' });
               setShowAddNetwork(false);
             } catch (e) {
               console.error('Add network error:', e);
-              showMsg('❌ Invalid network. Check RPC and Chain ID.');
+              showMsg('❌ Invalid network');
             }
             setLoading(false);
           };
@@ -1111,7 +1073,6 @@ if ('Notification' in window) {
               const { jsPDF } = window.jspdf;
               const doc = new jsPDF();
               
-              // Header
               doc.setFontSize(24);
               doc.setTextColor(102, 126, 234);
               doc.text('BaintWallet', 20, 30);
@@ -1120,39 +1081,29 @@ if ('Notification' in window) {
               doc.setTextColor(0, 0, 0);
               doc.text('Transaction Receipt', 20, 45);
               
-              // Details
               doc.setFontSize(12);
-              doc.text(`Transaction Hash:`, 20, 65);
+              doc.text(`Hash:`, 20, 65);
               doc.setFontSize(10);
               doc.text(transaction.hash, 20, 72);
               
               doc.setFontSize(12);
-              doc.text(`From:`, 20, 85);
-              doc.setFontSize(10);
-              doc.text(wallet.address, 20, 92);
+              doc.text(`From: ${wallet.address}`, 20, 85);
+              doc.text(`To: ${transaction.to}`, 20, 95);
+              doc.text(`Amount: ${transaction.amount} ${transaction.symbol}`, 20, 105);
+              doc.text(`Chain: ${chains[transaction.chain].name}`, 20, 115);
+              doc.text(`Status: ${transaction.status}`, 20, 125);
+              doc.text(`Date: ${transaction.time}`, 20, 135);
+              doc.text(`Platform Fee: FREE`, 20, 145);
               
-              doc.setFontSize(12);
-              doc.text(`To:`, 20, 105);
-              doc.setFontSize(10);
-              doc.text(transaction.to, 20, 112);
-              
-              doc.setFontSize(12);
-              doc.text(`Amount: ${transaction.amount} ${transaction.symbol}`, 20, 125);
-              doc.text(`Chain: ${chains[transaction.chain].name}`, 20, 135);
-              doc.text(`Status: ${transaction.status}`, 20, 145);
-              doc.text(`Date: ${transaction.time}`, 20, 155);
-              doc.text(`Platform Fee: FREE`, 20, 165);
-              
-              // Footer
               doc.setFontSize(10);
               doc.setTextColor(128, 128, 128);
-              doc.text('Generated by BaintWallet - Your keys, your crypto', 20, 280);
+              doc.text('Generated by BaintWallet', 20, 280);
               
               doc.save(`receipt-${transaction.hash.slice(0, 10)}.pdf`);
               showMsg('✅ Receipt downloaded!');
               celebrate();
             } catch (e) {
-              console.error('Receipt generation error:', e);
+              console.error('Receipt error:', e);
               showMsg('❌ Could not generate receipt');
             }
           };
@@ -1164,7 +1115,7 @@ if ('Notification' in window) {
             }
             
             setWcConnected(true);
-            showMsg('✅ WalletConnect session started!');
+            showMsg('✅ WalletConnect connected!');
             celebrate();
             addNotification('🔗', 'WalletConnect', 'Connected to DApp');
           };
@@ -1173,7 +1124,7 @@ if ('Notification' in window) {
             setWcConnected(false);
             setWcUri('');
             showMsg('✅ Disconnected');
-            addNotification('🔌', 'WalletConnect', 'Disconnected from DApp');
+            addNotification('🔌', 'Disconnected', 'WalletConnect session ended');
           };
 
           useEffect(() => {
@@ -1229,312 +1180,319 @@ if ('Notification' in window) {
 
           return (
             <div className={`min-h-screen ${darkMode ? 'dark' : ''}`}>
-              <div className="animated-gradient min-h-screen p-4 md:p-8">
-                
-                {message && (
-                  <div className="fixed top-4 right-4 z-50 glass-card rounded-2xl p-4 shadow-2xl fade-in max-w-md">
-                    <p className="font-semibold">{message}</p>
-                  </div>
-                )}
-
-                <div className="fixed top-4 left-4 z-40 flex space-x-2">
-                  <button onClick={() => setDarkMode(!darkMode)} className="glass-card p-4 rounded-2xl hover-glow text-2xl">
-                    {darkMode ? '☀️' : '🌙'}
-                  </button>
-                  
-                  {wallet && (
-                    <button onClick={() => setShowNotifications(!showNotifications)} className="glass-card p-4 rounded-2xl hover-glow text-2xl relative">
-                      🔔
-                      {notifications.filter(n => !n.read).length > 0 && (
-                        <span className="notification-badge">{notifications.filter(n => !n.read).length}</span>
-                      )}
-                    </button>
-                  )}
-                </div>
-
-                {showNotifications && (
-                  <div className="fixed top-20 left-4 z-50 glass-card rounded-2xl p-4 w-80 max-h-96 overflow-y-auto">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-bold text-lg">Notifications</h3>
-                      <button onClick={() => setShowNotifications(false)} className="text-2xl">✕</button>
+              <div className="animated-gradient min-h-screen p-4 md:p-8">{/* HEADER */}
+                <div className="max-w-md mx-auto">
+                  <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-3xl font-bold gradient-text">BaintWallet</h1>
+                    <div className="flex gap-2">
+                      {/* Notifications */}
+                      <button
+                        onClick={() => setShowNotifications(!showNotifications)}
+                        className="relative p-3 glass-card rounded-xl hover-glow transition"
+                      >
+                        <span className="text-2xl">🔔</span>
+                        {notifications.filter(n => !n.read).length > 0 && (
+                          <div className="notification-badge">
+                            {notifications.filter(n => !n.read).length}
+                          </div>
+                        )}
+                      </button>
+                      
+                      {/* Dark Mode Toggle */}
+                      <button
+                        onClick={() => setDarkMode(!darkMode)}
+                        className="p-3 glass-card rounded-xl hover-glow transition"
+                      >
+                        <span className="text-2xl">{darkMode ? '☀️' : '🌙'}</span>
+                      </button>
                     </div>
-                    {notifications.length === 0 ? (
-                      <p className="text-center text-gray-500 py-4">No notifications</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {notifications.map(notif => (
-                          <div key={notif.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                            <div className="flex items-start space-x-2">
-                              <span className="text-2xl">{notif.icon}</span>
-                              <div className="flex-1">
-                                <div className="font-semibold text-sm">{notif.title}</div>
-                                <div className="text-xs text-gray-600 dark:text-gray-400">{notif.message}</div>
-                                <div className="text-xs text-gray-500 mt-1">{notif.time}</div>
+                  </div>
+
+                  {/* Notifications Panel */}
+                  {showNotifications && (
+                    <div className="glass-card rounded-2xl p-4 mb-4 fade-in">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold">Notifications</h3>
+                        <button
+                          onClick={() => {
+                            setNotifications([]);
+                            setShowNotifications(false);
+                          }}
+                          className="text-sm text-purple-600 dark:text-purple-400"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                      {notifications.length === 0 ? (
+                        <p className="text-gray-500 text-center py-4">No notifications</p>
+                      ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {notifications.map(notif => (
+                            <div
+                              key={notif.id}
+                              className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl"
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className="text-2xl">{notif.icon}</span>
+                                <div className="flex-1">
+                                  <p className="font-semibold">{notif.title}</p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    {notif.message}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="max-w-4xl mx-auto">
-                  
-                  {view === 'intro' && (
-                    <div className="space-y-8 fade-in">
-                      <div className="text-center py-12">
-                        <h1 className="text-6xl md:text-8xl font-black gradient-text mb-4">BaintWallet</h1>
-                        <p className="text-xl text-white/80 font-semibold">100% Free Multi-Chain Crypto Wallet</p>
-                        <p className="text-sm text-white/60 mt-2">15+ Blockchains • Zero Fees on Sends • Your Keys, Your Crypto</p>
-                      </div>
-
-                      <div className={`glass-card rounded-3xl p-12 text-center hover-lift bg-gradient-to-br ${introSlides[introStep].gradient}`}>
-                        <div className="text-8xl mb-6 float-animation">{introSlides[introStep].icon}</div>
-                        <h2 className="text-4xl font-black mb-4 text-white">{introSlides[introStep].title}</h2>
-                        <p className="text-xl text-white/90 font-medium">{introSlides[introStep].description}</p>
-                      </div>
-
-                      <div className="flex justify-center space-x-3 mb-8">
-                        {introSlides.map((_, i) => (
-                          <div key={i} className={`dot ${i === introStep ? 'dot-active' : ''}`}></div>
-                        ))}
-                      </div>
-
-                      <div className="flex space-x-4">
-                        <button onClick={skipIntro} className="flex-1 py-4 glass-card rounded-2xl font-bold text-lg hover-lift">
-                          Skip
-                        </button>
-                        <button onClick={nextIntroSlide} className="flex-1 py-4 premium-button text-white rounded-2xl font-bold text-lg">
-                          {introStep === introSlides.length - 1 ? 'Get Started' : 'Next'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {view === 'create' && (
-                    <div className="space-y-6 fade-in">
-                      <div className="text-center mb-8">
-                        <h2 className="text-5xl font-black gradient-text mb-4">Choose Option</h2>
-                        <p className="text-white/80 text-lg font-semibold">Create new wallet or import existing</p>
-                        <div className="mt-4 inline-block glass-card px-6 py-3 rounded-full">
-                          <span className="text-green-400 font-bold">✅ 100% FREE</span>
-                          <span className="text-white/80 ml-2">• No Hidden Fees • No Signup Required</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <button onClick={createWallet} disabled={loading} className="glass-card rounded-3xl p-12 hover-lift text-center group disabled:opacity-50">
-                          <div className="text-7xl mb-6 group-hover:scale-110 transition-transform">✨</div>
-                          <h3 className="text-3xl font-black mb-3">Create Wallet</h3>
-                          <p className="text-gray-600 dark:text-gray-400 font-medium">Generate new wallet</p>
-                          {loading && <div className="mt-4 spinner inline-block text-3xl">⏳</div>}
-                        </button>
-
-                        <button onClick={() => setView('import')} className="glass-card rounded-3xl p-12 hover-lift text-center group">
-                          <div className="text-7xl mb-6 group-hover:scale-110 transition-transform">📥</div>
-                          <h3 className="text-3xl font-black mb-3">Import Wallet</h3>
-                          <p className="text-gray-600 dark:text-gray-400 font-medium">Use seed phrase</p>
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {[
-                          {icon:'🔒',title:'Military Security',desc:'Keys stay on device'},
-                          {icon:'⚡',title:'15+ Chains',desc:'Multi-chain support'},
-                          {icon:'💰',title:'100% FREE Sends',desc:'Zero platform fees'},
-                          {icon:'🔵',title:'Circle Arc Ready',desc:'First Arc wallet'},
-                          {icon:'🔗',title:'WalletConnect',desc:'Connect to DApps'},
-                          {icon:'🌐',title:'DApp Browser',desc:'Built-in browser'}
-                        ].map((f,i)=>(
-                          <div key={i} className="glass-card rounded-2xl p-6 hover-lift">
-                            <div className="text-3xl mb-3">{f.icon}</div>
-                            <h3 className="font-bold text-lg mb-2">{f.title}</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">{f.desc}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {view === 'import' && (
-                    <div className="space-y-6 fade-in">
-                      <div className="glass-card rounded-3xl p-8">
-                        <div className="flex items-center mb-6">
-                          <button onClick={() => setView('create')} className="mr-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover-glow">← Back</button>
-                          <h2 className="text-2xl font-bold">Import Wallet</h2>
-                        </div>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Seed Phrase (12 or 24 words)</label>
-                            <textarea value={seedInput} onChange={(e) => setSeedInput(e.target.value)} placeholder="word1 word2 word3..." rows="4" className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none font-mono text-sm resize-none" />
-                            <p className="text-xs text-gray-500 mt-2">⚠️ Never share your seed phrase with anyone!</p>
-                          </div>
-                          <button onClick={importWallet} disabled={loading || !seedInput.trim()} className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover-lift disabled:opacity-50">
-                            {loading ? '⏳ Importing...' : '📥 Import Wallet'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-{view === 'wallet' && wallet && (
-                    <div className="space-y-6 fade-in">
-                      <div className={`glass-card rounded-3xl p-10 bg-gradient-to-br ${chains[chain].color} text-white hover-lift relative overflow-hidden shadow-2xl`}>
-                        <div className="flex justify-between items-start mb-8 relative z-10">
-                          <div>
-                            <p className="text-sm opacity-75 mb-2 font-semibold uppercase">Total Balance</p>
-                            <h2 className="text-6xl font-black mb-3">{countingBalance.toFixed(4)}</h2>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-3xl font-bold">{chains[chain].symbol}</span>
-                              <span className="text-lg opacity-75">•</span>
-                              <span className="text-2xl font-semibold">${getUsdValue()}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-7xl mb-3 float-animation">{chains[chain].icon}</div>
-                            <div className="text-base font-bold">{chains[chain].name}</div>
-                            <div className="text-xs opacity-75 mt-1">{isTestnet ? '🧪 Testnet' : '🌐 Mainnet'}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between pt-6 border-t-2 border-white/30 relative z-10"><div className="flex items-center space-x-3">
-                            <div className={`w-3 h-3 rounded-full ${isTestnet ? 'bg-yellow-400' : 'bg-green-400'} animate-pulse`}></div>
-                            <span className="font-semibold text-sm">Connected</span>
-                          </div>
-                          <button onClick={refreshBalance} disabled={loading} className="px-6 py-3 bg-white/20 rounded-xl hover:bg-white/30 transition-all font-semibold flex items-center space-x-2 hover-lift">
-                            <span className={loading ? 'spinner inline-block' : ''}>🔄</span>
-                            <span>Refresh</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="glass-card rounded-3xl p-6 hover-lift">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 font-semibold">Address</p>
-                            <p className="font-mono text-sm break-all">{wallet.address}</p>
-                          </div>
-                          <button onClick={() => copyToClipboard(wallet.address)} className="ml-4 p-3 bg-purple-100 dark:bg-purple-900 rounded-xl hover-glow">📋</button>
-                        </div>
-                      </div>
-
-                      <div className="glass-card rounded-3xl p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Chain ({Object.keys(allChains).length} Available)</label>
-                            <select value={chain} onChange={(e) => setChain(e.target.value)} className="w-full p-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none">
-                              {Object.entries(allChains).map(([key, c]) => (
-                                <option key={key} value={key}>{c.icon} {c.name} {c.isCustom ? '(Custom)' : ''}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Network</label>
-                            <div className="flex space-x-2">
-                              <button onClick={() => setIsTestnet(true)} className={`flex-1 py-3 rounded-xl font-semibold transition-all ${isTestnet ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>🧪 Test</button>
-                              <button onClick={() => setIsTestnet(false)} className={`flex-1 py-3 rounded-xl font-semibold transition-all ${!isTestnet ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>🌐 Main</button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <button onClick={() => setView('send')} className="glass-card rounded-2xl p-6 hover-lift text-center group">
-                          <div className="text-4xl mb-2 group-hover:scale-110 transition-transform">📤</div>
-                          <div className="font-bold">Send</div>
-                          <div className="text-xs text-green-500 mt-1">FREE</div>
-                        </button>
-                        <button onClick={() => setView('receive')} className="glass-card rounded-2xl p-6 hover-lift text-center group">
-                          <div className="text-4xl mb-2 group-hover:scale-110 transition-transform">📥</div>
-                          <div className="font-bold">Receive</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">QR Code</div>
-                        </button>
-                        <button onClick={() => setView('nfts')} className="glass-card rounded-2xl p-6 hover-lift text-center group">
-                          <div className="text-4xl mb-2 group-hover:scale-110 transition-transform">🖼️</div>
-                          <div className="font-bold">NFTs</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Gallery</div>
-                        </button>
-                        <button onClick={() => setView('referral')} className="glass-card rounded-2xl p-6 hover-lift text-center group">
-                          <div className="text-4xl mb-2 group-hover:scale-110 transition-transform">🎁</div>
-                          <div className="font-bold">Referral</div>
-                          <div className="text-xs text-purple-500 mt-1">Earn 25%</div>
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <button onClick={() => setView('walletconnect')} className="glass-card rounded-2xl p-6 hover-lift text-center group">
-                          <div className="text-4xl mb-2 group-hover:scale-110 transition-transform">🔗</div>
-                          <div className="font-bold">WalletConnect</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">DApps</div>
-                        </button>
-                        <button onClick={() => setShowDappBrowser(true)} className="glass-card rounded-2xl p-6 hover-lift text-center group">
-                          <div className="text-4xl mb-2 group-hover:scale-110 transition-transform">🌐</div>
-                          <div className="font-bold">Browser</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">DApps</div>
-                        </button>
-                      </div>
-
-                      <button onClick={() => setShowAddNetwork(true)} className="w-full glass-card rounded-2xl p-4 hover-lift text-center">
-                        <span className="font-bold">➕ Add Custom Network</span>
-                        <span className="text-green-500 ml-2 text-sm">(FREE)</span>
-                      </button>
-
-                      {!isTestnet && (
-                        <div className="glass-card rounded-3xl p-8">
-                          <div className="flex justify-between items-center mb-6">
-                            <div className="flex items-center space-x-3">
-                              <span className="text-3xl">🪙</span>
-                              <h3 className="font-bold text-2xl">Tokens</h3>
-                            </div>
-                            <button onClick={loadTokenBalances} disabled={loadingTokens} className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold hover-lift disabled:opacity-50 shadow-lg">
-                              <span className={loadingTokens ? 'spinner inline-block' : ''}>🔄</span> {loadingTokens ? 'Loading...' : 'Refresh'}
-                            </button>
-                          </div>
-                          {tokens.length === 0 ? (
-                            <div className="text-center py-12">
-                              <div className="text-6xl mb-4">💰</div>
-                              <p className="text-gray-500 dark:text-gray-400 font-medium">No tokens found</p>
-                              <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Tokens will appear here when you have balance</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {tokens.map((token, i) => (
-                                <div key={i} onClick={() => { setSelectedToken(token); setView('send-token'); }} className="glass-card p-6 rounded-2xl hover-lift cursor-pointer flex justify-between items-center">
-                                  <div>
-                                    <div className="font-bold text-lg">{token.symbol}</div>
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">{token.name}</div>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="font-bold text-xl">{parseFloat(token.balance).toFixed(4)}</div>
-                                    <div className="text-xs text-green-500">FREE sends</div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                          ))}
                         </div>
                       )}
+                    </div>
+                  )}
 
+                  {/* Message Toast */}
+                  {message && (
+                    <div className="glass-card rounded-2xl p-4 mb-4 fade-in text-center font-semibold">
+                      {message}
+                    </div>
+                  )}
+
+                  {/* INTRO VIEW */}
+                  {view === 'intro' && (
+                    <div className="glass-card rounded-3xl p-8 fade-in hover-lift">
+                      <div className={`text-6xl mb-6 float-animation text-center`}>
+                        {introSlides[introStep].icon}
+                      </div>
+                      <h2 className={`text-3xl font-bold mb-4 text-center bg-gradient-to-r ${introSlides[introStep].gradient} text-transparent bg-clip-text`}>
+                        {introSlides[introStep].title}
+                      </h2>
+                      <p className="text-gray-600 dark:text-gray-300 text-center mb-8 leading-relaxed">
+                        {introSlides[introStep].description}
+                      </p>
+                      
+                      <div className="flex gap-2 justify-center mb-6">
+                        {introSlides.map((_, i) => (
+                          <div
+                            key={i}
+                            className={`dot transition-all ${i === introStep ? 'dot-active' : ''}`}
+                          />
+                        ))}
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        {introStep < introSlides.length - 1 ? (
+                          <>
+                            <button
+                              onClick={skipIntro}
+                              className="flex-1 py-4 rounded-xl border-2 border-purple-500 text-purple-600 dark:text-purple-400 font-semibold transition hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                            >
+                              Skip
+                            </button>
+                            <button
+                              onClick={nextIntroSlide}
+                              className="flex-1 py-4 rounded-xl premium-button text-white font-bold"
+                            >
+                              Next
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setView('create')}
+                            className="w-full py-4 rounded-xl premium-button text-white font-bold text-lg"
+                          >
+                            Get Started 🚀
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* CREATE/IMPORT VIEW */}
+                  {view === 'create' && (
+                    <div className="space-y-4 fade-in">
+                      <div className="glass-card rounded-3xl p-8 hover-lift">
+                        <div className="text-6xl text-center mb-6 float-animation">✨</div>
+                        <h2 className="text-2xl font-bold text-center mb-6">Create New Wallet</h2>
+                        <button
+                          onClick={createWallet}
+                          disabled={loading}
+                          className="w-full py-4 rounded-xl premium-button text-white font-bold text-lg disabled:opacity-50"
+                        >
+                          {loading ? <span className="spinner inline-block">⟳</span> : 'Create Wallet (FREE)'}
+                        </button>
+                      </div>
+
+                      <div className="glass-card rounded-3xl p-8 hover-lift">
+                        <div className="text-6xl text-center mb-6 float-animation">🔑</div>
+                        <h2 className="text-2xl font-bold text-center mb-6">Import Existing Wallet</h2>
+                        <textarea
+                          value={seedInput}
+                          onChange={(e) => setSeedInput(e.target.value)}
+                          placeholder="Enter your 12 or 24 word seed phrase..."
+                          className="w-full p-4 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800 mb-4 min-h-[120px] focus:outline-none focus:border-purple-500"
+                        />
+                        <button
+                          onClick={importWallet}
+                          disabled={loading}
+                          className="w-full py-4 rounded-xl premium-button text-white font-bold text-lg disabled:opacity-50"
+                        >
+                          {loading ? <span className="spinner inline-block">⟳</span> : 'Import Wallet (FREE)'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* WALLET VIEW */}
+                  {view === 'wallet' && wallet && (
+                    <div className="space-y-4 fade-in">
+                      {/* Chain Selector */}
+                      <div className="glass-card rounded-2xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="font-semibold">Network</label>
+                          <button
+                            onClick={() => setShowAddNetwork(true)}
+                            className="text-sm px-3 py-1 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+                          >
+                            + Add
+                          </button>
+                        </div>
+                        <select
+                          value={chain}
+                          onChange={(e) => setChain(e.target.value)}
+                          className="w-full p-3 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800 font-semibold"
+                        >
+                          {Object.entries(allChains).map(([key, c]) => (
+                            <option key={key} value={key}>
+                              {c.icon} {c.name} {c.isCustom ? '(Custom)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        
+                        <div className="flex items-center gap-2 mt-3">
+                          <button
+                            onClick={() => setIsTestnet(true)}
+                            className={`flex-1 py-2 rounded-lg font-semibold transition ${isTestnet ? 'bg-orange-500 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                          >
+                            🧪 Testnet
+                          </button>
+                          <button
+                            onClick={() => setIsTestnet(false)}
+                            className={`flex-1 py-2 rounded-lg font-semibold transition ${!isTestnet ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                          >
+                            💎 Mainnet
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Balance Card */}
+                      <div className={`glass-card rounded-3xl p-8 hover-lift bg-gradient-to-br ${allChains[chain].color}`}>
+                        <p className="text-white/80 mb-2 font-semibold">Total Balance</p>
+                        <h2 className="text-5xl font-bold text-white mb-2">
+                          {countingBalance.toFixed(4)} {allChains[chain].symbol}
+                        </h2>
+                        <p className="text-white/90 text-xl font-semibold">
+                          ≈ ${getUsdValue()} USD
+                        </p>
+                        
+                        <div className="mt-6 flex gap-2">
+                          <button
+                            onClick={() => copyToClipboard(wallet.address)}
+                            className="flex-1 py-3 bg-white/20 backdrop-blur rounded-xl text-white font-semibold hover:bg-white/30 transition"
+                          >
+                            📋 Copy Address
+                          </button>
+                          <button
+                            onClick={refreshBalance}
+                            disabled={loading}
+                            className="flex-1 py-3 bg-white/20 backdrop-blur rounded-xl text-white font-semibold hover:bg-white/30 transition disabled:opacity-50"
+                          >
+                            {loading ? <span className="spinner inline-block text-white">⟳</span> : '🔄 Refresh'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => setView('send')}
+                          className="glass-card p-6 rounded-2xl hover-lift text-center"
+                        >
+                          <div className="text-4xl mb-2">📤</div>
+                          <p className="font-bold">Send</p>
+                        </button>
+                        <button
+                          onClick={() => setView('receive')}
+                          className="glass-card p-6 rounded-2xl hover-lift text-center"
+                        >
+                          <div className="text-4xl mb-2">📥</div>
+                          <p className="font-bold">Receive</p>
+                        </button>
+                        <button
+                          onClick={() => setView('tokens')}
+                          className="glass-card p-6 rounded-2xl hover-lift text-center"
+                        >
+                          <div className="text-4xl mb-2">🪙</div>
+                          <p className="font-bold">Tokens</p>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setView('nfts');
+                            loadNFTs();
+                          }}
+                          className="glass-card p-6 rounded-2xl hover-lift text-center"
+                        >
+                          <div className="text-4xl mb-2">🖼️</div>
+                          <p className="font-bold">NFTs</p>
+                        </button>
+                        <button
+                          onClick={() => setView('walletconnect')}
+                          className="glass-card p-6 rounded-2xl hover-lift text-center"
+                        >
+                          <div className="text-4xl mb-2">🔗</div>
+                          <p className="font-bold">WalletConnect</p>
+                        </button>
+                        <button
+                          onClick={() => setView('referral')}
+                          className="glass-card p-6 rounded-2xl hover-lift text-center"
+                        >
+                          <div className="text-4xl mb-2">🎁</div>
+                          <p className="font-bold">Referrals</p>
+                        </button>
+                      </div>
+
+                      {/* Recent Transactions */}
                       {txs.length > 0 && (
-                        <div className="glass-card rounded-3xl p-8">
-                          <h3 className="font-bold text-2xl mb-6 flex items-center">
-                            <span className="text-3xl mr-3">📜</span>
-                            Recent Transactions
-                          </h3>
+                        <div className="glass-card rounded-2xl p-6">
+                          <h3 className="text-xl font-bold mb-4">Recent Transactions</h3>
                           <div className="space-y-3">
                             {txs.slice(0, 5).map((tx, i) => (
-                              <div key={i} className="glass-card p-4 rounded-xl flex justify-between items-center hover-lift">
+                              <div key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
                                 <div className="flex-1">
-                                  <div className="font-semibold">{tx.type === 'send' ? '📤 Sent' : '🪙 Token Sent'} {tx.amount} {tx.symbol}</div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{tx.time}</div>
-                                  <div className="text-xs text-green-500 mt-1">Platform Fee: FREE</div>
+                                  <p className="font-semibold">
+                                    {tx.type === 'send' ? '📤 Sent' : tx.type === 'token-send' ? '🪙 Token Sent' : '🖼️ NFT Sent'}
+                                  </p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    {tx.amount} {tx.symbol}
+                                  </p>
+                                  <p className="text-xs text-gray-400">{tx.time}</p>
                                 </div>
-                                <div className="flex items-center space-x-3">
-                                  <span className={`px-3 py-1 rounded-lg text-xs font-bold ${tx.status === 'confirmed' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'}`}>
-                                    {tx.status === 'confirmed' ? '✅ Confirmed' : '⏳ Pending'}
+                                <div className="flex flex-col items-end gap-2">
+                                  <span className={`text-xs px-3 py-1 rounded-full ${tx.status === 'confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}`}>
+                                    {tx.status}
                                   </span>
-                                  <button onClick={() => generateReceipt(tx)} className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg hover-glow">📄</button>
-                                  <a href={`${getExplorer()}/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg hover-glow">🔍</a>
+                                  <button
+                                    onClick={() => generateReceipt(tx)}
+                                    className="text-xs px-3 py-1 bg-purple-500 text-white rounded-full hover:bg-purple-600"
+                                  >
+                                    📄 Receipt
+                                  </button>
+                                  <a
+                                    href={`${getExplorer()}/tx/${tx.hash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                                  >
+                                    View →
+                                  </a>
                                 </div>
                               </div>
                             ))}
@@ -1542,501 +1500,571 @@ if ('Notification' in window) {
                         </div>
                       )}
 
-                      <div className="glass-card rounded-3xl p-8">
-                        <h3 className="font-bold text-2xl mb-6 flex items-center">
-                          <span className="text-3xl mr-3">🔐</span>
-                          Security
-                        </h3>
-                        <div className="space-y-4">
-                          <button onClick={() => setShowSeed(!showSeed)} className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-bold text-lg hover-lift">
-                            {showSeed ? '🙈 Hide' : '👁️ Show'} Seed Phrase
-                          </button>
-                          {showSeed && (
-                            <div className="p-6 bg-red-50 dark:bg-red-900 dark:bg-opacity-20 rounded-xl border-2 border-red-300 dark:border-red-700">
-                              <p className="font-mono text-sm break-all mb-4">{wallet.mnemonic}</p>
-                              <button onClick={() => copyToClipboard(wallet.mnemonic)} className="w-full py-3 bg-red-500 text-white rounded-xl font-bold hover-lift">📋 Copy Seed</button>
-                              <p className="text-xs text-red-600 dark:text-red-400 mt-4 font-semibold">⚠️ Never share this with anyone! Anyone with this phrase can access your funds.</p>
+                      {/* Security */}
+                      <button
+                        onClick={() => setView('security')}
+                        className="w-full glass-card p-4 rounded-2xl hover-lift text-center font-semibold"
+                      >
+                        🔐 View Seed Phrase & Keys
+                      </button>
+                    </div>
+                  )}
+
+                  {/* SEND VIEW */}
+                  {view === 'send' && (
+                    <div className="glass-card rounded-3xl p-8 fade-in">
+                      <button
+                        onClick={() => setView('wallet')}
+                        className="mb-6 text-purple-600 dark:text-purple-400 font-semibold"
+                      >
+                        ← Back
+                      </button>
+                      <h2 className="text-2xl font-bold mb-6">Send {allChains[chain].symbol}</h2>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block mb-2 font-semibold">Recipient Address</label>
+                          <input
+                            type="text"
+                            value={sendTo}
+                            onChange={(e) => setSendTo(e.target.value)}
+                            placeholder="0x..."
+                            className="w-full p-4 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block mb-2 font-semibold">Amount</label>
+                          <input
+                            type="number"
+                            step="0.000001"
+                            value={sendAmount}
+                            onChange={(e) => setSendAmount(e.target.value)}
+                            placeholder="0.0"
+                            className="w-full p-4 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800"
+                          />
+                          <p className="text-sm text-gray-500 mt-2">
+                            Balance: {wallet.balance} {allChains[chain].symbol}
+                          </p>
+                        </div>
+                        
+                        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl">
+                          <p className="text-green-800 dark:text-green-200 font-semibold">
+                            ✅ Platform Fee: FREE ($0.00)
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                            You only pay network gas fees
+                          </p>
+                        </div>
+                        
+                       <button
+                          onClick={sendToken}
+                          disabled={loading}
+                          className="w-full py-4 rounded-xl premium-button text-white font-bold text-lg disabled:opacity-50"
+                        >
+                          {loading ? <span className="spinner inline-block">⟳</span> : 'Send Token (FREE)'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* NFTs VIEW */}
+                  {view === 'nfts' && (
+                    <div className="glass-card rounded-3xl p-8 fade-in">
+                      <button
+                        onClick={() => setView('wallet')}
+                        className="mb-6 text-purple-600 dark:text-purple-400 font-semibold"
+                      >
+                        ← Back
+                      </button>
+                      
+                      <h2 className="text-2xl font-bold mb-6">My NFTs</h2>
+                      
+                      {isTestnet ? (
+                        <div className="text-center py-8">
+                          <p className="text-6xl mb-4">⚠️</p>
+                          <p className="text-gray-600 dark:text-gray-400">
+                            NFTs only available on mainnet
+                          </p>
+                        </div>
+                      ) : loadingNFTs ? (
+                        <div className="text-center py-8">
+                          <span className="spinner inline-block text-6xl">⟳</span>
+                          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading NFTs...</p>
+                        </div>
+                      ) : nfts.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-6xl mb-4">🖼️</p>
+                          <p className="text-gray-600 dark:text-gray-400">No NFTs found</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-4">
+                          {nfts.map((nft, i) => (
+                            <div
+                              key={i}
+                              onClick={() => setSelectedNFT(nft)}
+                              className="cursor-pointer hover-lift glass-card rounded-xl overflow-hidden"
+                            >
+                              {nft.image ? (
+                                <img
+                                  src={nft.image}
+                                  alt={nft.name}
+                                  className="w-full h-40 object-cover"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div
+                                className="w-full h-40 bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center text-4xl"
+                                style={{ display: nft.image ? 'none' : 'flex' }}
+                              >
+                                🖼️
+                              </div>
+                              <div className="p-3">
+                                <p className="font-bold text-sm truncate">{nft.name}</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                                  {nft.collection}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* NFT Detail Modal */}
+                  {selectedNFT && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                      <div className="glass-card rounded-3xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                        <button
+                          onClick={() => setSelectedNFT(null)}
+                          className="float-right text-2xl"
+                        >
+                          ✕
+                        </button>
+                        <div className="clear-both mb-4">
+                          {selectedNFT.image ? (
+                            <img
+                              src={selectedNFT.image}
+                              alt={selectedNFT.name}
+                              className="w-full rounded-xl mb-4"
+                            />
+                          ) : (
+                            <div className="w-full h-64 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center text-6xl mb-4">
+                              🖼️
                             </div>
                           )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {view === 'send' && wallet && (
-                    <div className="space-y-6 fade-in">
-                      <div className="glass-card rounded-3xl p-8">
-                        <div className="flex items-center mb-6">
-                          <button onClick={() => setView('wallet')} className="mr-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover-glow">← Back</button>
-                          <h2 className="text-2xl font-bold">Send {chains[chain].symbol}</h2>
-                          <span className="ml-auto bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-4 py-2 rounded-full font-bold text-sm">✅ FREE</span>
-                        </div>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Recipient Address</label>
-                            <input type="text" value={sendTo} onChange={(e) => setSendTo(e.target.value)} placeholder="0x..." className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none font-mono text-sm" />
+                          
+                          <h3 className="text-2xl font-bold mb-2">{selectedNFT.name}</h3>
+                          <p className="text-gray-600 dark:text-gray-400 mb-4">
+                            {selectedNFT.collection}
+                          </p>
+                          {selectedNFT.description && (
+                            <p className="text-sm mb-4">{selectedNFT.description}</p>
+                          )}
+                          
+                          <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl mb-4">
+                            <p className="text-yellow-800 dark:text-yellow-200 font-semibold">
+                              💰 Transfer Fee: ${NFT_TRANSFER_FEE}
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              Paid in {allChains[chain].symbol} + gas
+                            </p>
                           </div>
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Amount</label>
-                            <div className="relative">
-                              <input type="number" step="0.0001" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} placeholder="0.0" className="w-full p-4 pr-20 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none text-lg font-semibold" />
-                              <div className="absolute right-4 top-1/2 transform -translate-y-1/2 font-semibold text-gray-500">{chains[chain].symbol}</div>
-                            </div>
-                            <button onClick={() => setSendAmount(wallet.balance)} className="mt-2 text-sm text-purple-600 hover:text-purple-800 font-semibold">Max: {parseFloat(wallet.balance).toFixed(6)}</button>
-                          </div>
-                          <div className="p-4 bg-green-50 dark:bg-green-900 dark:bg-opacity-20 rounded-xl">
-                            <div className="flex justify-between text-sm mb-2">
-                              <span className="font-semibold">Network Fee:</span>
-                              <span>~$2-5 (paid to miners)</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span className="font-semibold text-green-600">Platform Fee:</span>
-                              <span className="font-bold text-green-600">FREE ✅</span>
-                            </div>
-                          </div>
-                          <button onClick={send} disabled={loading || !sendTo || !sendAmount} className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover-lift disabled:opacity-50">{loading ? '⏳ Sending...' : '🚀 Send (FREE)'}</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {view === 'send-token' && selectedToken && (
-                    <div className="space-y-6 fade-in">
-                      <div className="glass-card rounded-3xl p-8">
-                        <div className="flex items-center mb-6">
-                          <button onClick={() => { setView('wallet'); setSelectedToken(null); }} className="mr-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover-glow">← Back</button>
-                          <h2 className="text-2xl font-bold">Send {selectedToken.symbol}</h2>
-                          <span className="ml-auto bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-4 py-2 rounded-full font-bold text-sm">✅ FREE</span>
-                        </div>
-                        <div className="p-4 bg-purple-50 dark:bg-purple-900 dark:bg-opacity-20 rounded-xl mb-6">
-                          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Balance</div>
-                          <div className="text-2xl font-bold">{parseFloat(selectedToken.balance).toFixed(4)} {selectedToken.symbol}</div>
-                        </div>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Recipient</label>
-                            <input type="text" value={sendTo} onChange={(e) => setSendTo(e.target.value)} placeholder="0x..." className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none font-mono text-sm" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Amount</label>
-                            <div className="relative">
-                              <input type="number" step="0.01" value={sendTokenAmount} onChange={(e) => setSendTokenAmount(e.target.value)} placeholder="0.0" className="w-full p-4 pr-24 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none text-lg font-semibold" />
-                              <div className="absolute right-4 top-1/2 transform -translate-y-1/2 font-semibold text-gray-500">{selectedToken.symbol}</div>
-                            </div>
-                            <button onClick={() => setSendTokenAmount(selectedToken.balance)} className="mt-2 text-sm text-purple-600 hover:text-purple-800 font-semibold">Max: {parseFloat(selectedToken.balance).toFixed(6)}</button>
-                          </div>
-                          <button onClick={sendToken} disabled={loading || !sendTo || !sendTokenAmount} className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover-lift disabled:opacity-50">{loading ? '⏳ Sending...' : `🚀 Send ${selectedToken.symbol} (FREE)`}</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {view === 'receive' && wallet && (
-                    <div className="space-y-6 fade-in">
-                      <div className="glass-card rounded-3xl p-8">
-                        <div className="flex items-center mb-6">
-                          <button onClick={() => setView('wallet')} className="mr-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover-glow">← Back</button>
-                          <h2 className="text-2xl font-bold">Receive {chains[chain].symbol}</h2>
-                        </div>
-                        <div className="text-center">
-                          <div className="inline-block p-6 bg-white dark:bg-gray-800 rounded-2xl mb-6 shadow-lg">
-                            <div ref={qrRef}></div>
-                          </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 font-medium">Scan QR or copy address</p>
-                          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl font-mono text-sm break-all mb-4">{wallet.address}</div>
-                          <button onClick={() => copyToClipboard(wallet.address)} className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover-lift">📋 Copy Address</button>
-                          <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-20 rounded-xl">
-                            <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">⚠️ Only send {chains[chain].symbol} on {chains[chain].name} {isTestnet ? 'Testnet' : 'Mainnet'}!</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {view === 'nfts' && (
-                    <div className="space-y-6 fade-in">
-                      <div className="glass-card rounded-3xl p-8">
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center">
-                            <button onClick={() => setView('wallet')} className="mr-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover-glow">← Back</button>
-                            <h2 className="text-2xl font-bold flex items-center">
-                              <span className="text-3xl mr-3">🖼️</span>
-                              NFT Gallery
-                            </h2>
-                          </div>
-                          <button onClick={loadNFTs} disabled={loadingNFTs} className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold hover-lift disabled:opacity-50">
-                            <span className={loadingNFTs ? 'spinner inline-block' : ''}>🔄</span> {loadingNFTs ? 'Loading...' : 'Load NFTs'}
+                          
+                          <input
+                            type="text"
+                            placeholder="Recipient address (0x...)"
+                            className="w-full p-4 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800 mb-4"
+                            id="nft-recipient"
+                          />
+                          
+                          <button
+                            onClick={() => {
+                              const recipient = document.getElementById('nft-recipient').value;
+                              sendNFT(selectedNFT, recipient);
+                            }}
+                            disabled={loading}
+                            className="w-full py-4 rounded-xl premium-button text-white font-bold disabled:opacity-50"
+                          >
+                            {loading ? <span className="spinner inline-block">⟳</span> : `Send NFT ($${NFT_TRANSFER_FEE} fee)`}
                           </button>
                         </div>
+                      </div>
+                    </div>
+                  )}
 
-                        {isTestnet && (
-                          <div className="p-4 bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-20 rounded-xl mb-6">
-                            <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">⚠️ NFTs only available on Mainnet. Switch to mainnet to view your NFTs.</p>
+                  {/* WALLETCONNECT VIEW */}
+                  {view === 'walletconnect' && (
+                    <div className="glass-card rounded-3xl p-8 fade-in">
+                      <button
+                        onClick={() => setView('wallet')}
+                        className="mb-6 text-purple-600 dark:text-purple-400 font-semibold"
+                      >
+                        ← Back
+                      </button>
+                      
+                      <h2 className="text-2xl font-bold mb-6">🔗 WalletConnect</h2>
+                      
+                      {!wcConnected ? (
+                        <div className="space-y-4">
+                          <p className="text-gray-600 dark:text-gray-400 mb-4">
+                            Connect to DApps using WalletConnect
+                          </p>
+                          
+                          <div>
+                            <label className="block mb-2 font-semibold">WalletConnect URI</label>
+                            <textarea
+                              value={wcUri}
+                              onChange={(e) => setWcUri(e.target.value)}
+                              placeholder="wc:..."
+                              className="w-full p-4 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800 min-h-[100px]"
+                            />
                           </div>
-                        )}
-
-                        {nfts.length === 0 && !loadingNFTs ? (
-                          <div className="text-center py-12">
-                            <div className="text-6xl mb-4">🖼️</div>
-                            <p className="text-gray-500 dark:text-gray-400 font-medium">No NFTs found</p>
-                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Your NFTs will appear here</p>
-                            <button onClick={loadNFTs} className="mt-6 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover-lift">
-                              🔍 Search for NFTs
+                          
+                          <button
+                            onClick={connectWalletConnect}
+                            className="w-full py-4 rounded-xl premium-button text-white font-bold"
+                          >
+                            Connect (FREE)
+                          </button>
+                          
+                          <div className="text-center">
+                            <p className="text-sm text-gray-500 mb-4">Or browse DApps directly:</p>
+                            <button
+                              onClick={() => {
+                                setShowDappBrowser(true);
+                                setView('dapp-browser');
+                              }}
+                              className="px-6 py-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600"
+                            >
+                              🌐 Open DApp Browser
                             </button>
                           </div>
-                        ) : (
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {nfts.map((nft, i) => (
-                              <div key={i} onClick={() => setSelectedNFT(nft)} className="glass-card rounded-xl p-4 hover-lift cursor-pointer">
-                                {nft.image ? (
-                                  <img src={nft.image} alt={nft.name} className="w-full aspect-square object-cover rounded-lg mb-2" onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3ENFT%3C/text%3E%3C/svg%3E'; }} />
-                                ) : (
-                                  <div className="w-full aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg mb-2 flex items-center justify-center text-4xl">🖼️</div>
-                                )}
-                                <div className="font-bold text-sm truncate">{nft.name}</div>
-                                <div className="text-xs text-gray-500 truncate">{nft.collection}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {selectedNFT && (
-                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedNFT(null)}>
-                          <div className="glass-card rounded-3xl max-w-2xl w-full p-8" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex justify-between items-start mb-6">
-                              <h3 className="text-2xl font-bold">{selectedNFT.name}</h3>
-                              <button onClick={() => setSelectedNFT(null)} className="text-2xl p-2 hover-glow">✕</button>
-                            </div>
-                            
-                            <div className="mb-6">
-                              {selectedNFT.image ? (
-                                <img src={selectedNFT.image} alt={selectedNFT.name} className="w-full max-h-96 object-contain rounded-2xl" />
-                              ) : (
-                                <div className="w-full h-96 bg-gray-200 dark:bg-gray-700 rounded-2xl flex items-center justify-center text-6xl">🖼️</div>
-                              )}
-                            </div>
-
-                            <div className="space-y-3 mb-6">
-                              <div>
-                                <div className="text-sm text-gray-500">Collection</div>
-                                <div className="font-semibold">{selectedNFT.collection}</div>
-                              </div>
-                              <div>
-                                <div className="text-sm text-gray-500">Token ID</div>
-                                <div className="font-mono text-sm">{selectedNFT.tokenId}</div>
-                              </div>
-                              {selectedNFT.description && (
-                                <div>
-                                  <div className="text-sm text-gray-500">Description</div>
-                                  <div className="text-sm">{selectedNFT.description}</div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="p-4 bg-purple-50 dark:bg-purple-900 dark:bg-opacity-20 rounded-xl mb-4">
-                              <div className="flex justify-between text-sm">
-                                <span className="font-semibold">NFT Transfer Fee:</span>
-                                <span className="font-bold text-purple-600">${NFT_TRANSFER_FEE}</span>
-                              </div>
-                              <div className="text-xs text-gray-500 mt-1">Plus network gas fees</div>
-                            </div>
-
-                            <div className="space-y-3">
-                              <input type="text" placeholder="Recipient address (0x...)" value={sendTo} onChange={(e) => setSendTo(e.target.value)} className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none font-mono text-sm" />
-                              <button onClick={() => sendNFT(selectedNFT, sendTo)} disabled={loading || !sendTo} className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover-lift disabled:opacity-50">
-                                {loading ? '⏳ Sending NFT...' : `📤 Send NFT ($${NFT_TRANSFER_FEE} fee)`}
-                              </button>
-                            </div>
-                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-6xl mb-4">✅</p>
+                          <p className="text-xl font-bold mb-2">Connected!</p>
+                          <p className="text-gray-600 dark:text-gray-400 mb-6">
+                            Your wallet is now connected to the DApp
+                          </p>
+                          <button
+                            onClick={disconnectWalletConnect}
+                            className="px-6 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600"
+                          >
+                            Disconnect
+                          </button>
                         </div>
                       )}
                     </div>
                   )}
 
+                  {/* DAPP BROWSER VIEW */}
+                  {view === 'dapp-browser' && (
+                    <div className="glass-card rounded-3xl p-8 fade-in">
+                      <button
+                        onClick={() => {
+                          setView('walletconnect');
+                          setShowDappBrowser(false);
+                        }}
+                        className="mb-6 text-purple-600 dark:text-purple-400 font-semibold"
+                      >
+                        ← Back
+                      </button>
+                      
+                      <h2 className="text-2xl font-bold mb-6">🌐 DApp Browser</h2>
+                      
+                      <div className="mb-4">
+                        <label className="block mb-2 font-semibold">DApp URL</label>
+                        <input
+                          type="text"
+                          value={dappUrl}
+                          onChange={(e) => setDappUrl(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full p-4 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800"
+                        />
+                      </div>
+                      
+                      <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-purple-300 dark:border-purple-700" style={{ height: '500px' }}>
+                        <iframe
+                          src={dappUrl}
+                          className="w-full h-full"
+                          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                          title="DApp Browser"
+                        />
+                      </div>
+                      
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <button
+                          onClick={() => setDappUrl('https://app.uniswap.org')}
+                          className="p-3 bg-pink-500 text-white rounded-xl font-semibold hover:bg-pink-600"
+                        >
+                          🦄 Uniswap
+                        </button>
+                        <button
+                          onClick={() => setDappUrl('https://app.aave.com')}
+                          className="p-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600"
+                        >
+                          👻 Aave
+                        </button>
+                        <button
+                          onClick={() => setDappUrl('https://opensea.io')}
+                          className="p-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600"
+                        >
+                          🌊 OpenSea
+                        </button>
+                      </div>
+                      
+                      <div className="mt-4 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl">
+                        <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                          ⚠️ Note: Some DApps may require direct wallet connection. Use WalletConnect for full functionality.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* REFERRAL VIEW */}
                   {view === 'referral' && (
-                    <div className="space-y-6 fade-in">
-                      <div className="glass-card rounded-3xl p-8">
-                        <div className="flex items-center mb-6">
-                          <button onClick={() => setView('wallet')} className="mr-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover-glow">← Back</button>
-                          <h2 className="text-2xl font-bold flex items-center">
-                            <span className="text-3xl mr-3">🎁</span>
-                            Referral Program
-                          </h2>
-                        </div>
-
-                        <div className="p-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl text-white mb-6">
-                          <h3 className="text-2xl font-bold mb-2">Earn 25% Commission!</h3>
-                          <p className="text-white/90">Refer friends and earn 25% of their NFT transfer fees. They get 10% discount too!</p>
-                        </div>
-
-                        <div className="space-y-4 mb-6">
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Your Referral Code</label>
-                            <div className="flex items-center space-x-2">
-                              <input type="text" value={referralCode} readOnly className="flex-1 p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 font-mono font-bold text-lg" />
-                              <button onClick={() => copyToClipboard(referralCode)} className="px-6 py-4 bg-purple-500 text-white rounded-xl font-bold hover-lift">📋</button>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-semibold mb-2">Your Referral Link</label>
-                            <div className="flex items-center space-x-2">
-                              <input type="text" value={`${window.location.origin}?ref=${referralCode}`} readOnly className="flex-1 p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 font-mono text-sm" />
-                              <button onClick={() => copyToClipboard(`${window.location.origin}?ref=${referralCode}`)} className="px-6 py-4 bg-purple-500 text-white rounded-xl font-bold hover-lift">📋</button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                          <div className="glass-card p-6 rounded-2xl text-center">
-                            <div className="text-3xl mb-2">👥</div>
-                            <div className="text-3xl font-bold mb-1">{referralStats.referrals}</div>
-                            <div className="text-sm text-gray-500">Total Referrals</div>
-                          </div>
-                          <div className="glass-card p-6 rounded-2xl text-center">
-                            <div className="text-3xl mb-2">💰</div>
-                            <div className="text-3xl font-bold mb-1">${referralStats.earnings.toFixed(2)}</div>
-                            <div className="text-sm text-gray-500">Total Earnings</div>
-                          </div>
-                          <div className="glass-card p-6 rounded-2xl text-center">
-                            <div className="text-3xl mb-2">🎯</div>
-                            <div className="text-3xl font-bold mb-1">25%</div>
-                            <div className="text-sm text-gray-500">Commission Rate</div>
-                          </div>
-                        </div>
-
-                        <div className="p-6 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 rounded-xl">
-                          <h4 className="font-bold mb-3">📊 How It Works:</h4>
-                          <ol className="space-y-2 text-sm">
-                            <li className="flex items-start">
-                              <span className="font-bold mr-2">1.</span>
-                              <span>Share your referral link with friends</span>
-                            </li>
-                            <li className="flex items-start">
-                              <span className="font-bold mr-2">2.</span>
-                              <span>They sign up using your link and get 10% discount on NFT fees</span>
-                            </li>
-                            <li className="flex items-start">
-                              <span className="font-bold mr-2">3.</span>
-                              <span>You earn 25% commission on their NFT transfer fees</span>
-                            </li>
-                            <li className="flex items-start">
-                              <span className="font-bold mr-2">4.</span>
-                              <span>Earnings are automatically tracked and credited</span>
-                            </li>
-                          </ol>
-                        </div>
+                    <div className="glass-card rounded-3xl p-8 fade-in">
+                      <button
+                        onClick={() => setView('wallet')}
+                        className="mb-6 text-purple-600 dark:text-purple-400 font-semibold"
+                      >
+                        ← Back
+                      </button>
+                      
+                      <h2 className="text-2xl font-bold mb-6">🎁 Referral Program</h2>
+                      
+                      <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white mb-6">
+                        <p className="text-sm opacity-90 mb-2">Your Referral Code</p>
+                        <p className="text-3xl font-bold mb-4">{referralCode}</p>
+                        <button
+                          onClick={() => {
+                            const url = `${window.location.origin}?ref=${referralCode}`;
+                            copyToClipboard(url);
+                          }}
+                          className="w-full py-3 bg-white/20 backdrop-blur rounded-xl font-semibold hover:bg-white/30"
+                        >
+                          📋 Copy Referral Link
+                        </button>
                       </div>
-                    </div>
-                  )}
-
-                  {view === 'walletconnect' && wallet && (
-                    <div className="space-y-6 fade-in">
-                      <div className="glass-card rounded-3xl p-8">
-                        <div className="flex items-center mb-6">
-                          <button onClick={() => setView('wallet')} className="mr-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover-glow">← Back</button>
-                          <h2 className="text-2xl font-bold">WalletConnect</h2>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                          <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                            {referralStats.referrals}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Referrals</p>
                         </div>
-
-                        {!wcConnected ? (
-                          <div className="space-y-6">
-                            <div className="text-center py-8">
-                              <div className="text-6xl mb-4">🔗</div>
-                              <h3 className="text-xl font-bold mb-2">Connect to DApps</h3>
-                              <p className="text-gray-600 dark:text-gray-400">Paste WalletConnect URI to connect</p>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-semibold mb-2">WalletConnect URI</label>
-                              <textarea value={wcUri} onChange={(e) => setWcUri(e.target.value)} placeholder="wc:..." rows="3" className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none font-mono text-sm resize-none" />
-                            </div>
-                            <button onClick={connectWalletConnect} disabled={!wcUri.trim()} className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover-lift disabled:opacity-50">🔗 Connect</button>
-                            
-                            <div className="p-4 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 rounded-xl">
-                              <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">💡 How to use:</p>
-                              <ol className="text-sm text-blue-700 dark:text-blue-300 space-y-1 ml-4">
-                                <li>1. Open a DApp (Uniswap, OpenSea, etc.)</li>
-                                <li>2. Click "Connect Wallet"</li>
-                                <li>3. Select "WalletConnect"</li>
-                                <li>4. Copy the URI and paste here</li>
-                              </ol>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <a href="https://app.uniswap.org" target="_blank" rel="noopener noreferrer" className="glass-card p-4 rounded-xl text-center hover-lift">
-                                <div className="text-3xl mb-2">🦄</div>
-                                <div className="font-semibold text-sm">Uniswap</div>
-                              </a>
-                              <a href="https://app.aave.com" target="_blank" rel="noopener noreferrer" className="glass-card p-4 rounded-xl text-center hover-lift">
-                                <div className="text-3xl mb-2">👻</div>
-                                <div className="font-semibold text-sm">Aave</div>
-                              </a>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-6">
-                            <div className="text-center py-8">
-                              <div className="text-6xl mb-4">✅</div>
-                              <h3 className="text-xl font-bold mb-2 text-green-600">Connected!</h3>
-                              <p className="text-gray-600 dark:text-gray-400">Session active</p>
-                            </div>
-                            
-                            <div className="p-4 bg-green-50 dark:bg-green-900 dark:bg-opacity-20 rounded-xl">
-                              <p className="text-sm text-green-800 dark:text-green-200">Your wallet is connected. You can now interact with the DApp.</p>
-                            </div>
-
-                            <button onClick={disconnectWalletConnect} className="w-full py-4 bg-red-500 text-white rounded-xl font-bold text-lg hover-lift">🔌 Disconnect</button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {showDappBrowser && (
-                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="glass-card rounded-3xl w-full max-w-6xl h-[90vh] flex flex-col">
-                      <div className="flex items-center justify-between p-6 border-b-2 border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center space-x-4 flex-1">
-                          <button onClick={() => setShowDappBrowser(false)} className="p-2 bg-red-500 text-white rounded-lg hover-glow">✕</button>
-                          <input type="url" value={dappUrl} onChange={(e) => setDappUrl(e.target.value)} placeholder="Enter DApp URL..." className="flex-1 p-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none font-mono text-sm" />
-                          <button onClick={() => {}} className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover-lift">Go</button>
+                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center">
+                          <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+                            ${referralStats.earnings}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Earned</p>
                         </div>
                       </div>
                       
-                      <div className="flex-1 p-4">
-                        <div className="h-full bg-white dark:bg-gray-900 rounded-2xl overflow-hidden relative">
-                          <iframe src={dappUrl} className="w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="DApp Browser" />
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl">
+                        <h3 className="font-bold text-lg mb-3">How it works:</h3>
+                        <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                          <li>✅ Share your referral link</li>
+                          <li>✅ Friends sign up and create a wallet</li>
+                          <li>✅ Earn $5 per successful referral</li>
+                          <li>✅ Your friend gets a $2 bonus</li>
+                          <li>✅ Unlimited referrals, withdraw anytime</li>
+                        </ul>
+                      </div>
+                      
+                      <button
+                        onClick={() => {
+                          const text = `Join me on BaintWallet - the best multi-chain crypto wallet! 🚀\n\nSupports 15+ chains including Ethereum, BNB, Polygon, Circle Arc, Hyperliquid & ApeChain.\n\nSign up with my code and get $2: ${window.location.origin}?ref=${referralCode}`;
                           
-                          <div className="absolute bottom-4 right-4 glass-card p-3 rounded-xl">
-                            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-                              Connected: {wallet?.address?.slice(0, 6)}...{wallet?.address?.slice(-4)}
+                          if (navigator.share) {
+                            navigator.share({ title: 'Join BaintWallet', text });
+                          } else {
+                            copyToClipboard(text);
+                            showMsg('✅ Referral message copied!');
+                          }
+                        }}
+                        className="w-full mt-6 py-4 rounded-xl premium-button text-white font-bold"
+                      >
+                        📤 Share Now
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ADD CUSTOM NETWORK VIEW */}
+                  {showAddNetwork && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                      <div className="glass-card rounded-3xl p-8 max-w-md w-full">
+                        <button
+                          onClick={() => setShowAddNetwork(false)}
+                          className="float-right text-2xl"
+                        >
+                          ✕
+                        </button>
+                        <div className="clear-both mb-4">
+                          <h3 className="text-2xl font-bold mb-6">Add Custom Network</h3>
+                          
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block mb-2 font-semibold">Network Name *</label>
+                              <input
+                                type="text"
+                                value={newNetwork.name}
+                                onChange={(e) => setNewNetwork({...newNetwork, name: e.target.value})}
+                                placeholder="My Custom Network"
+                                className="w-full p-3 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800"
+                              />
                             </div>
-                            <div className="text-xs text-gray-500 mt-1">{chains[chain].name}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-4 border-t-2 border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                          <div className="flex space-x-2">
-                            {[
-                              { name: 'Uniswap', url: 'https://app.uniswap.org', icon: '🦄' },
-                              { name: 'Aave', url: 'https://app.aave.com', icon: '👻' },
-                              { name: 'OpenSea', url: 'https://opensea.io', icon: '🌊' },
-                              { name: 'Curve', url: 'https://curve.fi', icon: '📈' }
-                            ].map((dapp, i) => (
-                              <button key={i} onClick={() => setDappUrl(dapp.url)} className="glass-card px-4 py-2 rounded-xl hover-lift flex items-center space-x-2">
-                                <span>{dapp.icon}</span>
-                                <span className="text-sm font-semibold">{dapp.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            <span className="font-semibold text-yellow-600">⚠️</span> Beta Feature
+                            
+                            <div>
+                              <label className="block mb-2 font-semibold">RPC URL *</label>
+                              <input
+                                type="text"
+                                value={newNetwork.rpc}
+                                onChange={(e) => setNewNetwork({...newNetwork, rpc: e.target.value})}
+                                placeholder="https://rpc.example.com"
+                                className="w-full p-3 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block mb-2 font-semibold">Chain ID *</label>
+                              <input
+                                type="number"
+                                value={newNetwork.chainId}
+                                onChange={(e) => setNewNetwork({...newNetwork, chainId: e.target.value})}
+                                placeholder="1"
+                                className="w-full p-3 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block mb-2 font-semibold">Currency Symbol *</label>
+                              <input
+                                type="text"
+                                value={newNetwork.symbol}
+                                onChange={(e) => setNewNetwork({...newNetwork, symbol: e.target.value})}
+                                placeholder="ETH"
+                                className="w-full p-3 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block mb-2 font-semibold">Block Explorer (optional)</label>
+                              <input
+                                type="text"
+                                value={newNetwork.explorer}
+                                onChange={(e) => setNewNetwork({...newNetwork, explorer: e.target.value})}
+                                placeholder="https://explorer.example.com"
+                                className="w-full p-3 rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                            
+                            <button
+                              onClick={addCustomNetwork}
+                              disabled={loading}
+                              className="w-full py-4 rounded-xl premium-button text-white font-bold disabled:opacity-50"
+                            >
+                              {loading ? <span className="spinner inline-block">⟳</span> : 'Add Network (FREE)'}
+                            </button>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {showAddNetwork && (
-                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="glass-card rounded-3xl max-w-2xl w-full p-8">
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-2xl font-bold">➕ Add Custom Network</h3>
-                        <button onClick={() => setShowAddNetwork(false)} className="text-2xl p-2 hover-glow">✕</button>
+                  {/* SECURITY VIEW */}
+                  {view === 'security' && (
+                    <div className="glass-card rounded-3xl p-8 fade-in">
+                      <button
+                        onClick={() => setView('wallet')}
+                        className="mb-6 text-purple-600 dark:text-purple-400 font-semibold"
+                      >
+                        ← Back
+                      </button>
+                      
+                      <h2 className="text-2xl font-bold mb-6">🔐 Security & Backup</h2>
+                      
+                      <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-xl mb-6">
+                        <p className="text-red-800 dark:text-red-200 font-semibold mb-2">
+                          ⚠️ CRITICAL: Never share these with anyone!
+                        </p>
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                          Anyone with your seed phrase or private key has FULL ACCESS to your funds.
+                        </p>
                       </div>
-
-                      <div className="p-4 bg-green-50 dark:bg-green-900 dark:bg-opacity-20 rounded-xl mb-6">
-                        <p className="text-sm font-semibold text-green-800 dark:text-green-200">✅ Custom networks are FREE!</p>
-                      </div>
-
+                      
                       <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">Network Name *</label>
-                          <input type="text" value={newNetwork.name} onChange={(e) => setNewNetwork({...newNetwork, name: e.target.value})} placeholder="My Custom Network" className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none" />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">RPC URL *</label>
-                          <input type="url" value={newNetwork.rpc} onChange={(e) => setNewNetwork({...newNetwork, rpc: e.target.value})} placeholder="https://rpc.example.com" className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none font-mono text-sm" />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">Chain ID *</label>
-                          <input type="number" value={newNetwork.chainId} onChange={(e) => setNewNetwork({...newNetwork, chainId: e.target.value})} placeholder="1234" className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none" />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">Currency Symbol *</label>
-                          <input type="text" value={newNetwork.symbol} onChange={(e) => setNewNetwork({...newNetwork, symbol: e.target.value})} placeholder="ETH" className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none" />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">Block Explorer URL (Optional)</label>
-                          <input type="url" value={newNetwork.explorer} onChange={(e) => setNewNetwork({...newNetwork, explorer: e.target.value})} placeholder="https://explorer.example.com" className="w-full p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 focus:border-purple-500 focus:outline-none font-mono text-sm" />
-                        </div>
-
-                        <div className="flex space-x-4">
-                          <button onClick={() => setShowAddNetwork(false)} className="flex-1 py-4 bg-gray-200 dark:bg-gray-700 rounded-xl font-bold hover-lift">Cancel</button>
-                          <button onClick={addCustomNetwork} disabled={loading} className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover-lift disabled:opacity-50">
-                            {loading ? '⏳ Adding...' : '✅ Add Network (FREE)'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {customNetworks.length > 0 && (
-                        <div className="mt-6">
-                          <h4 className="font-bold mb-3">Your Custom Networks:</h4>
-                          <div className="space-y-2">
-                            {customNetworks.map(net => (
-                              <div key={net.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                                <div>
-                                  <div className="font-semibold">{net.name}</div>
-                                  <div className="text-xs text-gray-500">Chain ID: {net.testnet.chainId}</div>
-                                </div>
-                                <button onClick={() => removeCustomNetwork(net.id)} className="px-4 py-2 bg-red-500 text-white rounded-lg font-bold hover-lift text-sm">🗑️ Remove</button>
-                              </div>
-                            ))}
+                        <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-lg">Seed Phrase (12 words)</h3>
+                            <button
+                              onClick={() => setShowSeed(!showSeed)}
+                              className="text-purple-600 dark:text-purple-400 font-semibold"
+                            >
+                              {showSeed ? '🙈 Hide' : '👁️ Show'}
+                            </button>
                           </div>
+                          {showSeed ? (
+                            <>
+                              <div className="grid grid-cols-3 gap-2 mb-4">
+                                {wallet.mnemonic.split(' ').map((word, i) => (
+                                  <div key={i} className="bg-white dark:bg-gray-700 p-2 rounded text-center">
+                                    <span className="text-xs text-gray-500">{i + 1}.</span>
+                                    <p className="font-mono font-semibold">{word}</p>
+                                  </div>
+                                ))}
+                              </div>
+                              <button
+                                onClick={() => copyToClipboard(wallet.mnemonic)}
+                                className="w-full py-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600"
+                              >
+                                📋 Copy Seed Phrase
+                              </button>
+                            </>
+                          ) : (
+                            <p className="text-gray-500 text-center py-4">
+                              Click "Show" to reveal your seed phrase
+                            </p>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {view !== 'intro' && (
-                  <div className="max-w-4xl mx-auto mt-16 text-center">
-                    <div className="glass-card rounded-2xl p-6 mb-6">
-                      <div className="flex items-center justify-center space-x-8 text-white/80">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-2xl">🔒</span>
-                          <span className="font-semibold">Secure</span>
+                        
+                        <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl">
+                          <h3 className="font-bold text-lg mb-4">Private Key</h3>
+                          {showSeed ? (
+                            <>
+                              <p className="font-mono text-sm break-all bg-white dark:bg-gray-700 p-3 rounded mb-4">
+                                {wallet.privateKey}
+                              </p>
+               <button
+                                onClick={() => copyToClipboard(wallet.privateKey)}
+                                className="w-full py-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600"
+                              >
+                                📋 Copy Private Key
+                              </button>
+                            </>
+                          ) : (
+                            <p className="text-gray-500 text-center py-4">
+                              Show seed phrase first to reveal private key
+                            </p>
+                          )}
                         </div>
-                        <div className="w-px h-8 bg-white/20"></div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-2xl">⚡</span>
-                          <span className="font-semibold">100% Free</span>
-                        </div>
-                        <div className="w-px h-8 bg-white/20"></div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-2xl">🌐</span>
-                          <span className="font-semibold">15+ Chains</span>
+                        
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl">
+                          <h3 className="font-bold mb-3">💡 Security Tips:</h3>
+                          <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                            <li>✅ Write down your seed phrase on paper</li>
+                            <li>✅ Store it in a secure location (safe, vault)</li>
+                            <li>✅ Never take screenshots or store digitally</li>
+                            <li>✅ Never share with anyone, including support</li>
+                            <li>✅ Make multiple physical backups</li>
+                          </ul>
                         </div>
                       </div>
                     </div>
-                    <p className="text-white/70 text-sm font-medium">Built with ❤️ for the Web3 future</p>
-                    <p className="text-white/50 text-xs mt-2">Your keys, your crypto. Always.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }
-
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
-</body>
-</html
